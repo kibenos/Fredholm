@@ -1,0 +1,9 @@
+#gnuplot -persist -e "eps = 1.0e-5;" draw_solution.gpl
+
+set style line 1 lc rgb "blue" lt 1 lw 0.5 pt 7 ps 0.75
+set style line 2 lc rgb "red" lt 1 lw 2.5 pt 5 ps 1.5
+set title sprintf("eps = %e", eps)
+set output "solution.png"
+
+plot "nusolution.dat" binary format="%double%double" using ($1):($2):(eps) title "numerical" with yerrorbars linestyle 1, \
+     "ansolution.dat" binary format="%double%double" using ($1):($2) title "analytics" with lines linestyle 2
