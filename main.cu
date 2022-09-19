@@ -450,7 +450,7 @@ int main(int argc, char** argv)
 	size_t nh                 = 20;
 	size_t const nhxscale     = 1;
 	size_t const nhpscale     = 50;
-	double const hadapt       = 0.5;
+	double const hadapt       = abs(b - a) / 2.0;
 	size_t const nhscaleadapt = 2;
 	size_t const anN          = 500;
 
