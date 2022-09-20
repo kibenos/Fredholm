@@ -15,7 +15,6 @@
 #define BLOCK_SIZE 1024
 #define BLOCK_SIZE2D 32
 #define MIDX(i, j, ld) ((j) * ld + (i)) 
-#define PI 3.141592653589793238462643383279502884L
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 #define gpuGetLastError() gpuErrchk(cudaGetLastError())
 
@@ -390,52 +389,42 @@ double checkConvergence(cublasHandle_t handle,
 	approxfunc_t const solution1,
 	approxfunc_t const solution2,
 	double const       h0,
-	size_t const       nhscale,
 	double const*      ones,
 	double*            workspace
 )
 {
 	double const a = std::min({ solution1.mesh.a, solution2.mesh.a });
 	double const b = std::max({ solution1.mesh.b, solution2.mesh.b });
-	double const lambda  = 1.0 / nhscale;
 
 	double sumab    = 0.0;
 	double sumhprev = 0.0;
-	double sumhcurr = 0.0;
+	double sumh     = 0.0;
 	double acurr    = a;
-	double hcurr    = h0;
-	size_t nhcurr   = 1;
+	double h        = h0;
 	double errorh   = 0.0;
 
-	for (size_t i = 0; abs(b - acurr) > rule::eps; i++)
+	for (size_t nh = 1; abs(b - acurr) > rule::eps; nh++)
 	{
-		mesh_t mesh(acurr, acurr + hcurr, nhcurr);
+		mesh_t mesh(acurr, acurr + h, nh);
 
-		sumhprev = sumhcurr;
-		sumhcurr = getSolutionsDiffL2onNewMesh(handle, solution1, solution2, mesh, ones, workspace);
+		sumhprev = sumh;
+		sumh = getSolutionsDiffL2onNewMesh(handle, solution1, solution2, mesh, ones, workspace);
 
-		errorh = abs(sumhcurr - sumhprev) * hcurr / (b - a) / (1.0 - pow(2.0, -(double)rule::order));
-
-		if ((i + 1) % 1'000 == 0)
-			std::cout << "adaptive algorithm. iteration: " << (i + 1) << " (" << ((acurr - a) / (b - a)) << "%)\n";
-
-		if (i && errorh < rule::eps)
+		if (nh > 1)
 		{
-			acurr += hcurr;
-			sumab += sumhcurr;
-			hcurr  = h0;
+			nh = 0;
+			errorh = abs(sumh - sumhprev) * h / (b - a) / (1.0 - pow(2.0, -(double)rule::order));
+			if (errorh < rule::eps)
+			{
+				acurr += h;
+				sumab += sumhprev;
+				h = h0;
 
-			if (acurr + hcurr > b)
-				hcurr = b - acurr;
-		}
-		else if (nhcurr == nhscale)
-		{
-			nhcurr = 1;
-			hcurr *= lambda;
-		}
-		else if (nhcurr == 1)
-		{
-			nhcurr = nhscale;
+				if (acurr + h > b)
+					h = b - acurr;
+			}
+			else
+				h /= 2.0;
 		}
 
 		gpuErrchk(cudaFree(mesh.points));
@@ -447,12 +436,11 @@ double checkConvergence(cublasHandle_t handle,
 
 int main(int argc, char** argv)
 {
-	size_t nh                 = 20;
-	size_t const nhxscale     = 1;
-	size_t const nhpscale     = 50;
-	double const hadapt       = abs(b - a) / 2.0;
-	size_t const nhscaleadapt = 2;
-	size_t const anN          = 500;
+	size_t nh             = 1;
+	size_t const nhxscale = 1;
+	size_t const nhpscale = 50;
+	double const hadapt   = abs(b - a) / 2.0;
+	size_t const anN      = 500;
 
 	double* approxmatrix = nullptr;
 	double* ones         = nullptr;
@@ -491,7 +479,7 @@ int main(int argc, char** argv)
 		fill<<<(n + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(ones, 1.0, n);
 		gpuErrchk(cudaDeviceSynchronize());
 
-		workspacesize = (n + 1) * nhscaleadapt * rule::npoints * sizeof(double);
+		workspacesize = (n + 1) * 2 * rule::npoints * sizeof(double);
 		gpuErrchk(cudaFree(workspace));
 		gpuErrchk(cudaMalloc(&workspace, workspacesize));
 
@@ -507,7 +495,7 @@ int main(int argc, char** argv)
 
 		if (i)
 		{
-			error = checkConvergence(cublas_handle, *currsolution, *prevsolution, hadapt, nhscaleadapt, ones, workspace);
+			error = checkConvergence(cublas_handle, *currsolution, *prevsolution, hadapt, ones, workspace);
 
 			if ((i + 1) % 1 == 0)
 				std::cout << "iteration: " << (i + 1) << "; h = " << currsolution->mesh.h << "; error = " << error << "; n = " << n << "\n";
