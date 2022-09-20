@@ -3,6 +3,8 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
+#define PI 3.141592653589793238462643383279502884L
+
 #if TEST_NUMBER == 11
 
 double a = 0.0;
