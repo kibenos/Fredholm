@@ -137,7 +137,7 @@ struct approxfunc_t
 template<unsigned int NPOINTS>
 __global__ void setPoints(mesh_t const mesh)
 {
-	size_t i = gridDim.x * blockIdx.x + threadIdx.x;
+	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (NPOINTS == 1)
 	{
@@ -209,7 +209,7 @@ __global__ void getKerrApproxMatrix(mesh_t const mesh, double rulesumcoeff, doub
 
 __global__ void getRhs(mesh_t const mesh, double* rhs)
 {
-	size_t i = gridDim.x * blockIdx.x + threadIdx.x;
+	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (i < mesh.npoints)
 		rhs[i] = func(mesh.points[i]);
